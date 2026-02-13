@@ -10,6 +10,8 @@ PORT="${PORT:-8080}"
 THREADS="${THREADS:-2}"
 CTX_SIZE="${CTX_SIZE:-4096}"
 N_GPU_LAYERS="${N_GPU_LAYERS:-0}"
+N_BATCH="${N_BATCH:-512}"
+N_UBATCH="${N_UBATCH:-512}"
 LOW_PRIORITY="${LOW_PRIORITY:-1}"
 NICE_LEVEL="${NICE_LEVEL:-10}"
 CPU_LIMIT="${CPU_LIMIT:-}"
@@ -49,6 +51,8 @@ build_python_cmd() {
     --n_threads "${THREADS}"
     --n_ctx "${CTX_SIZE}"
     --n_gpu_layers "${N_GPU_LAYERS}"
+    --n_batch "${N_BATCH}"
+    --n_ubatch "${N_UBATCH}"
   )
 }
 

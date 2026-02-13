@@ -27,14 +27,18 @@ This file tracks key learnings from each experiment run.
 | 5 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, Threads: 2, nice: 10, CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, **DPO-trained model** | **73.7%** ✅ | 22.54s | 41.79s | 46.7% | ❌ **100%** | ❌ **100%** | ⚠️ Great accuracy, bad spike |
 | 6 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, **Threads: 1** (spike mitigation attempt), nice: 10, CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 38.67s | 71.57s | 38.0% | ❌ **100%** | ❌ **100%** | ⚠️ Slower, same spike |
 | 7 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, Threads: 2, **nice: 19** (max nice, spike mitigation attempt), CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 22.05s | 40.24s | 40.2% | ❌ **100%** | ❌ **100%** | ❌ Nice doesn't cap CPU |
+| 8 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, Threads: 2, nice: 10, **n_batch: 128** (chunked prefill, spike mitigation attempt), n_ubatch: 128, CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 23.70s | 43.39s | 47.8% | ❌ **100%** | ❌ **100%** | ❌ Chunking doesn't help |
+| 9 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, Threads: 2, nice: 10, **n_batch: 32** (aggressive chunked prefill, spike mitigation attempt), n_ubatch: 32, CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 24.39s | 45.05s | 51.5% | ❌ **100%** | ❌ **100%** | ❌ Aggressive chunking failed |
 
 **Spike Mitigation Techniques Tested:**
-- ❌ Thread reduction (2→1): Still 100% spike
-- ❌ Nice priority increase (10→19): Still 100% spike
+- ❌ Thread reduction (2→1, Exp 3, 6): Still 100% spike
+- ❌ Nice priority increase (10→19, Exp 7): Still 100% spike
 - ❌ Process priority scheduling: Does not cap CPU usage
+- ❌ Chunked prefill (n_batch=128, Exp 8): Still 100% spike
+- ❌ Aggressive chunked prefill (n_batch=32, Exp 9): Still 100% spike
 
 **NOT Tested (because unavailable on macOS):**
-- cpulimit tool (not installed, brew install failed)
+- cpulimit tool (not installed, brew install requires non-root)
 - cgroups (Linux-only kernel feature)
 - CPU affinity with hard caps
 
@@ -426,4 +430,125 @@ This file tracks key learnings from each experiment run.
    - Too much overhead for this use case
 
 **Conclusion:** Nice priority and thread limits are ineffective. Need chunked prefill or move to Linux with cgroups.
+
+
+## Experiment 8: Chunked Prefill (n_batch=128)
+
+**Date:** 2026-02-13
+
+**Model:** mradermacher/RedSage-Qwen3-8B-DPO-GGUF (Q4_K_M quantization)
+
+**Configuration:**
+- Threads: 2
+- Context size: 4096
+- GPU layers: 0 (CPU-only)
+- **n_batch: 128** (chunked prefill, default is 512)
+- **n_ubatch: 128**
+- Nice: 10
+
+**Results:**
+- **Mean correctness score:** 0.7367 (73.67%) - unchanged
+- **Mean latency:** 23.70s
+- **p50 latency:** 25.16s
+- **p95 latency:** 43.39s
+- **p99 latency:** 43.39s
+- **Latency p99/p50 ratio:** 1.72
+- **Mean system CPU:** 47.8%
+- **🚨 PEAK system CPU:** 100.0%
+- **🚨 p99 system CPU:** 100.0%
+
+**Key Findings:**
+
+1. **Chunked Prefill Does NOT Prevent Spike**
+   - Reduced batch size from 512→128 (4x smaller chunks)
+   - Still 100% CPU spike
+   - No improvement over default
+
+---
+
+## Experiment 9: Aggressive Chunked Prefill (n_batch=32)
+
+**Date:** 2026-02-13
+
+**Model:** mradermacher/RedSage-Qwen3-8B-DPO-GGUF (Q4_K_M quantization)
+
+**Configuration:**
+- Threads: 2
+- Context size: 4096
+- GPU layers: 0 (CPU-only)
+- **n_batch: 32** (very aggressive chunking, 16x smaller than default)
+- **n_ubatch: 32**
+- Nice: 10
+
+**Results:**
+- **Mean correctness score:** 0.7367 (73.67%) - unchanged
+- **Mean latency:** 24.39s
+- **p50 latency:** 25.88s
+- **p95 latency:** 45.05s
+- **p99 latency:** 45.05s
+- **Latency p99/p50 ratio:** 1.74
+- **Mean system CPU:** 51.5%
+- **🚨 PEAK system CPU:** 100.0%
+- **🚨 p99 system CPU:** 100.0%
+
+**Key Findings:**
+
+1. **Even Aggressive Chunking Fails**
+   - n_batch=32 means processing only 32 tokens per batch
+   - Still 100% CPU spike
+   - Slightly higher mean CPU (51.5% vs 47.8%)
+
+2. **Why Chunked Prefill Failed:**
+   - llama.cpp may not yield between batches in server mode
+   - n_batch controls memory access patterns, not CPU scheduling
+   - Prefill computation is still continuous even with small batches
+
+---
+
+## Critical Analysis: Chunked Prefill Experiments (8-9)
+
+**Hypothesis:** Chunked prefill would spread CPU work over time by processing tokens in smaller batches.
+
+**Result:** FAILED - 100% CPU spike persists regardless of batch size.
+
+**Batch Sizes Tested:**
+- Default (512): 100% spike (Exp 5)
+- n_batch=128: 100% spike (Exp 8)
+- n_batch=32: 100% spike (Exp 9)
+
+**Why It Didn't Work:**
+
+1. **n_batch doesn't control yielding**
+   - It's a memory optimization parameter
+   - Controls how many tokens are processed in one BLAS operation
+   - Does NOT insert scheduler yields between batches
+
+2. **Continuous computation**
+   - Even with small batches, computation is continuous
+   - No sleep/yield between batch iterations
+   - Single-threaded computation still saturates one core
+
+3. **Server mode limitations**
+   - llama-cpp-python server mode may not honor chunking for CPU scheduling
+   - Would need custom modifications to add yields
+
+**What This Means:**
+
+❌ **Application-level chunking (n_batch) does NOT solve the spike problem**
+❌ **OS-level controls (nice, threads) do NOT solve the spike problem**
+
+**Only Remaining Options:**
+
+1. **Kernel-level CPU caps (Linux cgroups)**
+   - Hard cap at OS level
+   - Requires Linux (not available on macOS)
+
+2. **Custom llama.cpp modifications**
+   - Add explicit yields between batches
+   - Requires forking and maintaining custom build
+
+3. **Accept the spike**
+   - Re-evaluate "invisible" requirement
+   - 100% spike for ~2-3 seconds might be acceptable
+   - Depends on user workload
 
