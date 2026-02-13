@@ -1,0 +1,16 @@
+[project]
+name = "coach-experiments"
+version = "0.1.0"
+description = "Local LLM benchmarking for endpoint security tasks"
+requires-python = ">=3.10"
+dependencies = [
+    "psutil>=6.1.1",
+    "pyyaml>=6.0.2",
+    "requests>=2.32.3",
+    "huggingface-hub>=1.4.1",
+    "llama-cpp-python[server]>=0.3.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

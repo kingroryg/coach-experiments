@@ -3,7 +3,7 @@ set -euo pipefail
 
 LLAMA_SERVER_MODE="${LLAMA_SERVER_MODE:-auto}" # auto|binary|python
 LLAMA_SERVER_BIN="${LLAMA_SERVER_BIN:-llama-server}"
-PYTHON_BIN="${PYTHON_BIN:-.venv/bin/python}"
+PYTHON_CMD="${PYTHON_CMD:-uv run python}"
 MODEL_PATH="${MODEL_PATH:-}"
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-8080}"
@@ -32,8 +32,9 @@ build_binary_cmd() {
 }
 
 build_python_cmd() {
+  # shellcheck disable=SC2206
   CMD=(
-    "${PYTHON_BIN}"
+    ${PYTHON_CMD}
     -m llama_cpp.server
     --model "${MODEL_PATH}"
     --host "${HOST}"
@@ -51,10 +52,10 @@ elif [[ "${LLAMA_SERVER_MODE}" == "python" ]]; then
 else
   if command -v "${LLAMA_SERVER_BIN}" >/dev/null 2>&1; then
     build_binary_cmd
-  elif [[ -x "${PYTHON_BIN}" ]]; then
+  elif command -v uv >/dev/null 2>&1; then
     build_python_cmd
   else
-    echo "No server runtime found. Set LLAMA_SERVER_BIN or install llama-cpp-python in .venv."
+    echo "No server runtime found. Set LLAMA_SERVER_BIN or install uv and run 'uv sync'."
     exit 1
   fi
 fi

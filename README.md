@@ -8,16 +8,13 @@ Benchmark local `llama.cpp` server for correctness and resource impact on endpoi
 
 Install dependencies:
 ```bash
-uv venv
-uv pip install --python .venv/bin/python -r requirements.txt
-uv pip install --python .venv/bin/python 'llama-cpp-python[server]'
+uv sync
 ```
 
 Download a model:
 ```bash
 export HF_TOKEN=...
-source .venv/bin/activate
-python scripts/download_hf_gguf.py --repo-id LiquidAI/LFM2.5-1.2B-Instruct-GGUF --output-dir models
+uv run python scripts/download_hf_gguf.py --repo-id LiquidAI/LFM2.5-1.2B-Instruct-GGUF --output-dir models
 ```
 
 ## Usage
@@ -27,7 +24,7 @@ Single benchmark run:
 export MODEL_PATH=/path/to/model.gguf
 ./scripts/start_llama_server.sh  # terminal 1
 
-python scripts/benchmark.py \
+uv run python scripts/benchmark.py \
   --base-url http://127.0.0.1:8080 \
   --prompt-file prompts/endpoint_security_eval.jsonl \
   --output-dir results/run1  # terminal 2
@@ -35,7 +32,7 @@ python scripts/benchmark.py \
 
 Matrix experiments:
 ```bash
-python scripts/run_matrix.py --config configs/matrix.example.yaml
+uv run python scripts/run_matrix.py --config configs/matrix.example.yaml
 ```
 
 ## Outputs

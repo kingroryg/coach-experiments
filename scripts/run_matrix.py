@@ -62,7 +62,7 @@ def stop_server(proc: subprocess.Popen) -> None:
 
 
 def run_benchmark(workspace: Path, args: list[str]) -> None:
-    cmd = ["python3", "scripts/benchmark.py", *args]
+    cmd = ["uv", "run", "python", "scripts/benchmark.py", *args]
     subprocess.run(cmd, cwd=workspace, check=True)
 
 
