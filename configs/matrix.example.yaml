@@ -1,0 +1,39 @@
+global:
+  base_url: "http://127.0.0.1:8080"
+  prompt_file: "prompts/endpoint_security_eval.jsonl"
+  output_root: "results"
+  timeout_s: 90
+  warmup_prompts: 2
+  samples_per_prompt: 1
+  llama_server_bin: "${LLAMA_SERVER_BIN}"
+  model_path: "${MODEL_PATH}"
+
+runs:
+  - name: "baseline_q8_threads2_ctx4096"
+    env:
+      THREADS: "2"
+      CTX_SIZE: "4096"
+      N_GPU_LAYERS: "0"
+      TEMPERATURE: "0"
+      TOP_P: "1"
+      EXTRA_ARGS: ""
+
+  - name: "q6_threads2_ctx4096"
+    model_path: "/path/to/model-q6.gguf"
+    env:
+      THREADS: "2"
+      CTX_SIZE: "4096"
+      N_GPU_LAYERS: "0"
+      TEMPERATURE: "0"
+      TOP_P: "1"
+      EXTRA_ARGS: ""
+
+  - name: "q4_threads1_ctx2048"
+    model_path: "/path/to/model-q4.gguf"
+    env:
+      THREADS: "1"
+      CTX_SIZE: "2048"
+      N_GPU_LAYERS: "0"
+      TEMPERATURE: "0"
+      TOP_P: "1"
+      EXTRA_ARGS: ""
