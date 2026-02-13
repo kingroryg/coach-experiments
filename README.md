@@ -16,6 +16,8 @@ Set your HuggingFace token (required for downloading models):
 export HF_TOKEN=...
 ```
 
+**macOS Note:** If the server hangs during startup, set `export GGML_METAL_DISABLE=1` to disable Metal/GPU acceleration.
+
 ## Usage
 
 `MODEL_PATH` can be either a local GGUF file path or a HuggingFace repo ID containing GGUF files.
