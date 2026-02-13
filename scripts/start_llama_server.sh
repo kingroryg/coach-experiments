@@ -19,6 +19,12 @@ if [[ -z "${MODEL_PATH}" ]]; then
   exit 1
 fi
 
+# Resolve MODEL_PATH (handles both local paths and HuggingFace repo IDs)
+MODEL_PATH=$(uv run python scripts/resolve_model.py "${MODEL_PATH}")
+if [[ $? -ne 0 ]]; then
+  exit 1
+fi
+
 build_binary_cmd() {
   CMD=(
     "${LLAMA_SERVER_BIN}"

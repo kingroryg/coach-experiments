@@ -11,17 +11,18 @@ Install dependencies:
 uv sync
 ```
 
-Download a model:
+Set your HuggingFace token (required for downloading models):
 ```bash
 export HF_TOKEN=...
-uv run python scripts/download_hf_gguf.py --repo-id LiquidAI/LFM2.5-1.2B-Instruct-GGUF --output-dir models
 ```
 
 ## Usage
 
+`MODEL_PATH` can be either a local GGUF file path or a HuggingFace repo ID containing GGUF files.
+
 Single benchmark run:
 ```bash
-export MODEL_PATH=/path/to/model.gguf
+export MODEL_PATH=LiquidAI/LFM2.5-1.2B-Instruct-GGUF  # or /path/to/model.gguf
 ./scripts/start_llama_server.sh  # terminal 1
 
 uv run python scripts/benchmark.py \
