@@ -35,25 +35,44 @@ results/    # generated run outputs
 ```
 
 ## Quick Start
-1. Create env and install deps.
+1. Create env and install deps (`uv` first).
+```bash
+uv venv
+uv pip install --python .venv/bin/python -r requirements.txt
+uv pip install --python .venv/bin/python 'llama-cpp-python[server]'
+```
+
+Alternative:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+pip install 'llama-cpp-python[server]'
 ```
 
-2. Point to your local `llama-server` binary and model.
+2. Download a GGUF model (requires `HF_TOKEN`).
 ```bash
-export LLAMA_SERVER_BIN=/path/to/llama-server
+export HF_TOKEN=...
+source .venv/bin/activate
+python scripts/download_hf_gguf.py \
+  --repo-id LiquidAI/LFM2.5-1.2B-Instruct-GGUF \
+  --output-dir models
+```
+
+3. Point to your model path. For server runtime, default is auto:
+- if `llama-server` is in `PATH`, it uses that
+- else it uses `.venv/bin/python -m llama_cpp.server`
+
+```bash
 export MODEL_PATH=/path/to/model.gguf
 ```
 
-3. Start local inference server with low-priority defaults.
+4. Start local inference server with low-priority defaults.
 ```bash
 ./scripts/start_llama_server.sh
 ```
 
-4. In another shell, run one benchmark pass.
+5. In another shell, run one benchmark pass.
 ```bash
 python scripts/benchmark.py \
   --base-url http://127.0.0.1:8080 \
@@ -61,7 +80,7 @@ python scripts/benchmark.py \
   --output-dir results/manual-run
 ```
 
-5. Run multi-profile experiments from config.
+6. Run multi-profile experiments from config.
 ```bash
 python scripts/run_matrix.py --config configs/matrix.example.yaml
 ```

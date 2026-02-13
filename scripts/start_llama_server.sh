@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+LLAMA_SERVER_MODE="${LLAMA_SERVER_MODE:-auto}" # auto|binary|python
 LLAMA_SERVER_BIN="${LLAMA_SERVER_BIN:-llama-server}"
+PYTHON_BIN="${PYTHON_BIN:-.venv/bin/python}"
 MODEL_PATH="${MODEL_PATH:-}"
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-8080}"
@@ -17,15 +19,45 @@ if [[ -z "${MODEL_PATH}" ]]; then
   exit 1
 fi
 
-CMD=(
-  "${LLAMA_SERVER_BIN}"
-  -m "${MODEL_PATH}"
-  --host "${HOST}"
-  --port "${PORT}"
-  -t "${THREADS}"
-  -c "${CTX_SIZE}"
-  -ngl "${N_GPU_LAYERS}"
-)
+build_binary_cmd() {
+  CMD=(
+    "${LLAMA_SERVER_BIN}"
+    -m "${MODEL_PATH}"
+    --host "${HOST}"
+    --port "${PORT}"
+    -t "${THREADS}"
+    -c "${CTX_SIZE}"
+    -ngl "${N_GPU_LAYERS}"
+  )
+}
+
+build_python_cmd() {
+  CMD=(
+    "${PYTHON_BIN}"
+    -m llama_cpp.server
+    --model "${MODEL_PATH}"
+    --host "${HOST}"
+    --port "${PORT}"
+    --n_threads "${THREADS}"
+    --n_ctx "${CTX_SIZE}"
+    --n_gpu_layers "${N_GPU_LAYERS}"
+  )
+}
+
+if [[ "${LLAMA_SERVER_MODE}" == "binary" ]]; then
+  build_binary_cmd
+elif [[ "${LLAMA_SERVER_MODE}" == "python" ]]; then
+  build_python_cmd
+else
+  if command -v "${LLAMA_SERVER_BIN}" >/dev/null 2>&1; then
+    build_binary_cmd
+  elif [[ -x "${PYTHON_BIN}" ]]; then
+    build_python_cmd
+  else
+    echo "No server runtime found. Set LLAMA_SERVER_BIN or install llama-cpp-python in .venv."
+    exit 1
+  fi
+fi
 
 if [[ -n "${EXTRA_ARGS}" ]]; then
   # shellcheck disable=SC2206

@@ -11,6 +11,7 @@ global:
 runs:
   - name: "baseline_q8_threads2_ctx4096"
     env:
+      LLAMA_SERVER_MODE: "python"
       THREADS: "2"
       CTX_SIZE: "4096"
       N_GPU_LAYERS: "0"
@@ -19,8 +20,9 @@ runs:
       EXTRA_ARGS: ""
 
   - name: "q6_threads2_ctx4096"
-    model_path: "/path/to/model-q6.gguf"
+    model_path: "models/LiquidAI__LFM2.5-1.2B-Instruct-GGUF/model-q6.gguf"
     env:
+      LLAMA_SERVER_MODE: "python"
       THREADS: "2"
       CTX_SIZE: "4096"
       N_GPU_LAYERS: "0"
@@ -29,8 +31,9 @@ runs:
       EXTRA_ARGS: ""
 
   - name: "q4_threads1_ctx2048"
-    model_path: "/path/to/model-q4.gguf"
+    model_path: "models/LiquidAI__LFM2.5-1.2B-Instruct-GGUF/model-q4.gguf"
     env:
+      LLAMA_SERVER_MODE: "python"
       THREADS: "1"
       CTX_SIZE: "2048"
       N_GPU_LAYERS: "0"
