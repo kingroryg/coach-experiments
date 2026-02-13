@@ -74,3 +74,106 @@ This file tracks key learnings from each experiment run.
 - Try binary llama-server instead of Python wrapper for faster startup
 
 ---
+
+## Experiment 2: LFM2-2.6B with 2 Threads
+
+**Date:** 2026-02-13
+
+**Model:** LiquidAI/LFM2-2.6B-GGUF (Q4_K_M quantization)
+
+**Configuration:**
+- Threads: 2
+- Context size: 4096
+- GPU layers: 0 (CPU-only with GGML_METAL_DISABLE=1)
+- Temperature: 0.0
+- Top-p: 1.0
+
+**Results:**
+- **Mean correctness score:** 0.075 (7.5%) - NO IMPROVEMENT
+- **Mean latency:** 15.43s (5x slower than 1.2B!)
+- **p50/p95/p99 latency:** 15.43s (perfectly stable, ratio = 1.0)
+- **Mean system CPU:** 35.4%
+- **🚨 PEAK system CPU:** 78.3%
+- **🚨 p99 system CPU:** 78.3%
+- **Process RSS:** 22.38 MB
+
+**Key Findings:**
+
+1. **CRITICAL: CPU Spikes Violate Requirements**
+   - Peak CPU hit 78.3% - exceeds 50% p99 threshold
+   - "Invisible" goal FAILED due to spikes
+   - Enhanced metrics successfully caught the spike
+
+2. **No Correctness Improvement:** 2.6B vs 1.2B showed no quality gain
+   - Still only 7.5% score on security tasks
+   - Suggests architectural issues or poor task fit
+
+3. **Latency Degradation:** 5x slower than 1.2B despite only 2x size
+   - Possible architecture differences (MoE overhead?)
+
+4. **Latency Very Predictable:** p99/p50 ratio = 1.0 (excellent)
+
+---
+
+## Experiment 3: LFM2-2.6B with 1 Thread (Spike Mitigation)
+
+**Date:** 2026-02-13
+
+**Model:** LiquidAI/LFM2-2.6B-GGUF (Q4_K_M quantization)
+
+**Configuration:**
+- Threads: 1 (reduced to control spikes)
+- Context size: 4096
+- GPU layers: 0 (CPU-only)
+
+**Results:**
+- **Mean correctness score:** 0.075 (unchanged)
+- **Mean latency:** 23.98s (56% slower than THREADS=2)
+- **Mean system CPU:** 26.3%
+- **🚨 PEAK system CPU:** 70.0%
+- **🚨 p99 system CPU:** 70.0%
+- **Process RSS:** 22.14 MB
+
+**Key Findings:**
+
+1. **Thread Reduction Did NOT Solve Spikes**
+   - Still 70% peak CPU (above 50% threshold)
+   - THREADS=1 made latency worse without fixing spikes
+
+2. **Latency-Spike Tradeoff Poor**
+   - Lost 56% performance for only 8% CPU reduction
+   - Not a viable solution
+
+---
+
+## Experiment 4: LFM2-8B (FAILED)
+
+**Date:** 2026-02-13
+
+**Model:** LiquidAI/LFM2-8B-A1B-GGUF (Q4_K_M quantization)
+
+**Result:** Model failed to load
+**Error:** `ValueError: Failed to load model from file`
+
+**Hypothesis:** MoE architecture incompatible with current llama-cpp-python version
+
+---
+
+## Critical Insights from Experiments 2-4
+
+**Problem Statement:** CPU spikes exceed "invisible" threshold, models too inaccurate
+
+1. **CPU Spike Root Cause:** Likely prefill phase causing burst
+   - Need chunked prefill (split into smaller batches)
+   - May need process CPU affinity/cgroups for hard limits
+
+2. **Model Selection Issue:** LFM models underperforming on security tasks
+   - Consider trying established models (Mistral, Llama, Qwen)
+   - May need security-fine-tuned models
+
+3. **Next Experiments Needed:**
+   - Test chunked prefill (`--n-batch` parameter in llama.cpp)
+   - Try Mistral-7B or Qwen2.5-7B with security fine-tuning
+   - Investigate cgroups/CPU affinity for spike control
+   - Test if smaller batch size reduces prefill spike
+
