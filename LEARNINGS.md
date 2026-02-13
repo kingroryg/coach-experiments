@@ -26,6 +26,7 @@ This file tracks key learnings from each experiment run.
 | 4 | LFM2-8B (MoE) | 8B | Q4_K_M quant, 2 threads, MoE architecture | N/A | N/A | N/A | N/A | N/A | N/A | ❌ Load failed |
 | 5 | **RedSage-Qwen3-8B** | 8B | Q4_K_M quant, 2 threads, nice priority, CPU-only, **DPO-trained model** | **73.7%** ✅ | 22.54s | 41.79s | 46.7% | ❌ **100%** | ❌ **100%** | ⚠️ Great accuracy, bad spike |
 | 6 | **RedSage-Qwen3-8B** | 8B | Q4_K_M quant, **1 thread** (spike mitigation), nice priority, CPU-only, DPO-trained | **73.7%** ✅ | 38.67s | 71.57s | 38.0% | ❌ **100%** | ❌ **100%** | ⚠️ Slower, same spike |
+| 7 | **RedSage-Qwen3-8B** | 8B | Q4_K_M quant, 2 threads, **nice=19** (max nice), CPU-only, DPO-trained | **73.7%** ✅ | 22.05s | 40.24s | 40.2% | ❌ **100%** | ❌ **100%** | ❌ Nice doesn't cap CPU |
 
 **Key Findings:**
 - ✅ **RedSage-Qwen3-8B achieves 73.7% correctness** (near 80% goal!)
@@ -323,4 +324,95 @@ This file tracks key learnings from each experiment run.
 4. **Prompt Length Analysis**
    - Measure spike correlation with prompt length
    - Shorter prompts might stay under threshold
+
+
+## Experiment 7: Nice Priority Test (nice=19 vs nice=10)
+
+**Date:** 2026-02-13
+
+**Model:** mradermacher/RedSage-Qwen3-8B-DPO-GGUF (Q4_K_M quantization)
+
+**Configuration:**
+- Threads: 2
+- Context size: 4096
+- GPU layers: 0 (CPU-only)
+- **Nice level: 19 (maximum niceness)**
+
+**Results:**
+- **Mean correctness score:** 0.7367 (73.67%) - unchanged
+- **Mean latency:** 22.05s (slightly better than nice=10)
+- **p50 latency:** 22.23s
+- **p95 latency:** 40.24s
+- **p99 latency:** 40.24s
+- **Latency p99/p50 ratio:** 1.81
+- **Mean system CPU:** 40.2%
+- **🚨 PEAK system CPU:** 100.0%
+- **🚨 p99 system CPU:** 100.0%
+- **Process RSS:** 22.25 MB
+
+**Key Findings:**
+
+1. **Nice Priority Does NOT Prevent CPU Spikes**
+   - Still 100% system CPU spike despite maximum niceness (19)
+   - Nice only affects *scheduling priority*, not CPU usage caps
+   - When no other processes are competing, nice process gets 100% anyway
+
+2. **Understanding Nice:**
+   - Nice -20 to +19 controls scheduling priority
+   - Higher nice = yields to other processes when they need CPU
+   - Does NOT limit max CPU usage when system is idle
+   - ❌ Not a solution for "invisible" requirement
+
+3. **What We Actually Need:**
+   - Hard CPU caps (cgroups on Linux, not available on macOS)
+   - Process throttling (SIGSTOP/SIGCONT, causes stuttering)
+   - Chunked prefill (spread work over time)
+
+---
+
+## Resource Restriction Analysis
+
+**Tested Approaches:**
+
+| Technique | What It Does | Does It Cap CPU? | Result |
+|-----------|--------------|------------------|--------|
+| **Nice priority (10)** | Lower scheduling priority | ❌ No | 100% spike |
+| **Nice priority (19)** | Minimum scheduling priority | ❌ No | 100% spike |
+| **Thread limit (1)** | Reduce parallelism | ❌ No | 100% spike (single core) |
+| **Thread limit (2)** | Moderate parallelism | ❌ No | 100% spike |
+
+**Why Current Techniques Fail:**
+
+1. **Nice** = Scheduling priority, not CPU cap
+   - Only helps when competing with other processes
+   - If system is idle, nice process still gets 100%
+
+2. **Thread limits** = Parallelism control, not intensity control
+   - THREADS=1 means "use 1 thread"
+   - That 1 thread can still run at 100% CPU
+
+3. **Root cause:** Prefill phase processes all prompt tokens in one burst
+   - No matter how many threads, it saturates whatever cores it uses
+   - Need to spread the work over time, not just reduce parallelism
+
+**What Would Actually Work:**
+
+1. **Chunked Prefill** (HIGHEST PRIORITY)
+   - Process N tokens, yield, process N more
+   - Spreads CPU usage over time
+   - llama.cpp `--n-batch` parameter
+
+2. **Linux cgroups** (not available on macOS)
+   - Hard kernel-level CPU percentage cap
+   - Would work but requires Linux
+
+3. **Custom Throttling** (possible but hacky)
+   - Monitor CPU usage, send SIGSTOP when over threshold
+   - Causes stuttering, not recommended
+
+4. **Hardware-level** (extreme)
+   - Run in VM with CPU limit
+   - Too much overhead for this use case
+
+**Conclusion:** Nice priority and thread limits are ineffective. Need chunked prefill or move to Linux with cgroups.
 
