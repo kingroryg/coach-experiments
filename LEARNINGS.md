@@ -18,14 +18,14 @@ This file tracks key learnings from each experiment run.
 
 ## TL;DR: Experiment Comparison
 
-| Exp | Model | Size | Quant | Threads | Correctness | Mean Lat | p95 Lat | Mean CPU | **Peak CPU** | **p99 CPU** | Status |
-|-----|-------|------|-------|---------|-------------|----------|---------|----------|--------------|-------------|--------|
-| 1 | LFM2.5-1.2B | 1.2B | Q4_K_M | 2 | 7.5% | 2.88s | 2.88s | 35.4% | ❌ N/A | ❌ N/A | ⚠️ No spike data |
-| 2 | LFM2-2.6B | 2.6B | Q4_K_M | 2 | 7.5% | 15.43s | 15.43s | 35.4% | ❌ 78.3% | ❌ 78.3% | ❌ Failed (spike) |
-| 3 | LFM2-2.6B | 2.6B | Q4_K_M | 1 | 7.5% | 23.98s | 23.98s | 26.3% | ❌ 70.0% | ❌ 70.0% | ❌ Failed (spike) |
-| 4 | LFM2-8B | 8B | Q4_K_M | 2 | N/A | N/A | N/A | N/A | N/A | N/A | ❌ Load failed |
-| 5 | **RedSage-Qwen3-8B** | 8B | Q4_K_M | 2 | **73.7%** ✅ | 22.54s | 41.79s | 46.7% | ❌ **100%** | ❌ **100%** | ⚠️ Great accuracy, bad spike |
-| 6 | **RedSage-Qwen3-8B** | 8B | Q4_K_M | 1 | **73.7%** ✅ | 38.67s | 71.57s | 38.0% | ❌ **100%** | ❌ **100%** | ⚠️ Slower, same spike |
+| Exp | Model | Size | Techniques Tried | Correctness | Mean Lat | p95 Lat | Mean CPU | **Peak CPU** | **p99 CPU** | Status |
+|-----|-------|------|------------------|-------------|----------|---------|----------|--------------|-------------|--------|
+| 1 | LFM2.5-1.2B | 1.2B | Q4_K_M quant, 2 threads, nice priority, CPU-only | 7.5% | 2.88s | 2.88s | 35.4% | ❌ N/A | ❌ N/A | ⚠️ No spike data |
+| 2 | LFM2-2.6B | 2.6B | Q4_K_M quant, 2 threads, nice priority, CPU-only | 7.5% | 15.43s | 15.43s | 35.4% | ❌ 78.3% | ❌ 78.3% | ❌ Failed (spike) |
+| 3 | LFM2-2.6B | 2.6B | Q4_K_M quant, **1 thread** (spike mitigation), nice priority, CPU-only | 7.5% | 23.98s | 23.98s | 26.3% | ❌ 70.0% | ❌ 70.0% | ❌ Failed (spike) |
+| 4 | LFM2-8B (MoE) | 8B | Q4_K_M quant, 2 threads, MoE architecture | N/A | N/A | N/A | N/A | N/A | N/A | ❌ Load failed |
+| 5 | **RedSage-Qwen3-8B** | 8B | Q4_K_M quant, 2 threads, nice priority, CPU-only, **DPO-trained model** | **73.7%** ✅ | 22.54s | 41.79s | 46.7% | ❌ **100%** | ❌ **100%** | ⚠️ Great accuracy, bad spike |
+| 6 | **RedSage-Qwen3-8B** | 8B | Q4_K_M quant, **1 thread** (spike mitigation), nice priority, CPU-only, DPO-trained | **73.7%** ✅ | 38.67s | 71.57s | 38.0% | ❌ **100%** | ❌ **100%** | ⚠️ Slower, same spike |
 
 **Key Findings:**
 - ✅ **RedSage-Qwen3-8B achieves 73.7% correctness** (near 80% goal!)
