@@ -18,24 +18,35 @@ This file tracks key learnings from each experiment run.
 
 ## TL;DR: Experiment Comparison
 
-| Exp | Model | Size | Techniques Tried | Correctness | Mean Lat | p95 Lat | Mean CPU | **Peak CPU** | **p99 CPU** | Status |
-|-----|-------|------|------------------|-------------|----------|---------|----------|--------------|-------------|--------|
-| 1 | LFM2.5-1.2B | 1.2B | Q4_K_M quant, 2 threads, nice priority, CPU-only | 7.5% | 2.88s | 2.88s | 35.4% | ❌ N/A | ❌ N/A | ⚠️ No spike data |
-| 2 | LFM2-2.6B | 2.6B | Q4_K_M quant, 2 threads, nice priority, CPU-only | 7.5% | 15.43s | 15.43s | 35.4% | ❌ 78.3% | ❌ 78.3% | ❌ Failed (spike) |
-| 3 | LFM2-2.6B | 2.6B | Q4_K_M quant, **1 thread** (spike mitigation), nice priority, CPU-only | 7.5% | 23.98s | 23.98s | 26.3% | ❌ 70.0% | ❌ 70.0% | ❌ Failed (spike) |
-| 4 | LFM2-8B (MoE) | 8B | Q4_K_M quant, 2 threads, MoE architecture | N/A | N/A | N/A | N/A | N/A | N/A | ❌ Load failed |
-| 5 | **RedSage-Qwen3-8B** | 8B | Q4_K_M quant, 2 threads, nice priority, CPU-only, **DPO-trained model** | **73.7%** ✅ | 22.54s | 41.79s | 46.7% | ❌ **100%** | ❌ **100%** | ⚠️ Great accuracy, bad spike |
-| 6 | **RedSage-Qwen3-8B** | 8B | Q4_K_M quant, **1 thread** (spike mitigation), nice priority, CPU-only, DPO-trained | **73.7%** ✅ | 38.67s | 71.57s | 38.0% | ❌ **100%** | ❌ **100%** | ⚠️ Slower, same spike |
-| 7 | **RedSage-Qwen3-8B** | 8B | Q4_K_M quant, 2 threads, **nice=19** (max nice), CPU-only, DPO-trained | **73.7%** ✅ | 22.05s | 40.24s | 40.2% | ❌ **100%** | ❌ **100%** | ❌ Nice doesn't cap CPU |
+| Exp | Model | Size | Techniques Tried (Extremely Specific) | Correctness | Mean Lat | p95 Lat | Mean CPU | **Peak CPU** | **p99 CPU** | Status |
+|-----|-------|------|---------------------------------------|-------------|----------|---------|----------|--------------|-------------|--------|
+| 1 | LFM2.5-1.2B | 1.2B | Quantization: Q4_K_M, Threads: 2, nice: 10, CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0 | 7.5% | 2.88s | 2.88s | 35.4% | ❌ N/A | ❌ N/A | ⚠️ No spike data |
+| 2 | LFM2-2.6B | 2.6B | Quantization: Q4_K_M, Threads: 2, nice: 10, CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0 | 7.5% | 15.43s | 15.43s | 35.4% | ❌ 78.3% | ❌ 78.3% | ❌ Failed (spike) |
+| 3 | LFM2-2.6B | 2.6B | Quantization: Q4_K_M, **Threads: 1** (spike mitigation attempt), nice: 10, CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0 | 7.5% | 23.98s | 23.98s | 26.3% | ❌ 70.0% | ❌ 70.0% | ❌ Failed (spike) |
+| 4 | LFM2-8B (MoE) | 8B | Quantization: Q4_K_M, Threads: 2, nice: 10, CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, MoE architecture (1.5B active) | N/A | N/A | N/A | N/A | N/A | N/A | ❌ Load failed |
+| 5 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, Threads: 2, nice: 10, CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, **DPO-trained model** | **73.7%** ✅ | 22.54s | 41.79s | 46.7% | ❌ **100%** | ❌ **100%** | ⚠️ Great accuracy, bad spike |
+| 6 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, **Threads: 1** (spike mitigation attempt), nice: 10, CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 38.67s | 71.57s | 38.0% | ❌ **100%** | ❌ **100%** | ⚠️ Slower, same spike |
+| 7 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, Threads: 2, **nice: 19** (max nice, spike mitigation attempt), CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 22.05s | 40.24s | 40.2% | ❌ **100%** | ❌ **100%** | ❌ Nice doesn't cap CPU |
+
+**Spike Mitigation Techniques Tested:**
+- ❌ Thread reduction (2→1): Still 100% spike
+- ❌ Nice priority increase (10→19): Still 100% spike
+- ❌ Process priority scheduling: Does not cap CPU usage
+
+**NOT Tested (because unavailable on macOS):**
+- cpulimit tool (not installed, brew install failed)
+- cgroups (Linux-only kernel feature)
+- CPU affinity with hard caps
 
 **Key Findings:**
 - ✅ **RedSage-Qwen3-8B achieves 73.7% correctness** (near 80% goal!)
 - ❌ **ALL models have CPU spikes ≥ 70%** (target: ≤ 50% p99)
-- ❌ **Thread reduction doesn't prevent spikes** (architectural issue)
+- ❌ **Thread reduction (Exp 3, 6) doesn't prevent spikes** (architectural issue)
+- ❌ **Nice priority (Exp 7) doesn't prevent spikes** (only affects scheduling order)
 - ⚠️ **LFM models underperform** on security tasks (7.5% vs 73.7%)
 - ⚠️ **Spike occurs regardless of model size** (1.2B to 8B)
 
-**Conclusion:** Model selection solved correctness, but CPU spike problem remains unsolved. Next: Test chunked prefill or CPU affinity controls.
+**Conclusion:** Model selection solved correctness, but CPU spike problem remains unsolved. OS-level controls (nice, threads) are ineffective. Next: Test chunked prefill (application-level control).
 
 ---
 
