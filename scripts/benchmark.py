@@ -151,17 +151,37 @@ def summarize(rows: list[dict], metrics_csv: Path) -> dict:
     proc_cpu = col_floats("proc_cpu_pct")
     proc_rss = col_floats("proc_rss_mb")
 
+    # Calculate percentiles
+    def percentile(data: list[float], p: float) -> float | None:
+        if not data:
+            return None
+        if len(data) < 10:
+            return round(max(data), 4)
+        n = int(len(data) * p / 100)
+        return round(sorted(data)[n], 4)
+
+    p50_latency = percentile(latencies, 50)
+    p95_latency = percentile(latencies, 95)
+    p99_latency = percentile(latencies, 99)
+
+    p99_system_cpu = percentile(sys_cpu, 99)
+    p99_proc_cpu = percentile(proc_cpu, 99)
+
     return {
         "prompt_count": len(rows),
         "mean_score": round(statistics.mean(scores), 4) if scores else None,
         "min_score": round(min(scores), 4) if scores else None,
         "mean_latency_s": round(statistics.mean(latencies), 4) if latencies else None,
-        "p95_latency_s": round(statistics.quantiles(latencies, n=20)[18], 4)
-        if len(latencies) >= 20
-        else (round(max(latencies), 4) if latencies else None),
+        "p50_latency_s": p50_latency,
+        "p95_latency_s": p95_latency,
+        "p99_latency_s": p99_latency,
+        "latency_p99_p50_ratio": round(p99_latency / p50_latency, 2) if (p99_latency and p50_latency) else None,
         "mean_system_cpu_pct": round(statistics.mean(sys_cpu), 3) if sys_cpu else None,
+        "peak_system_cpu_pct": round(max(sys_cpu), 3) if sys_cpu else None,
+        "p99_system_cpu_pct": p99_system_cpu,
         "mean_proc_cpu_pct": round(statistics.mean(proc_cpu), 3) if proc_cpu else None,
         "peak_proc_cpu_pct": round(max(proc_cpu), 3) if proc_cpu else None,
+        "p99_proc_cpu_pct": p99_proc_cpu,
         "mean_proc_rss_mb": round(statistics.mean(proc_rss), 3) if proc_rss else None,
         "peak_proc_rss_mb": round(max(proc_rss), 3) if proc_rss else None,
     }

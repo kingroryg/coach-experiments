@@ -3,10 +3,14 @@
 ## Success Criteria
 Set these before tuning:
 - Idle CPU budget (example: <= 2%)
-- Active CPU budget (example: <= 35%)
-- RAM cap (example: <= 6 GB)
+- Active CPU budget (example: <= 35% mean, <= 50% p99)
+- **No CPU spikes** above active budget during inference
+- RAM cap (example: <= 6 GB peak, no spikes)
 - p95 latency cap (example: <= 2.5 s for short prompts)
+- **Latency predictability** (p99/p50 ratio < 2.0)
 - Correctness floor (example: >= 0.80 rubric score)
+
+**"Invisible" means:** No perceptible system slowdown during inference. Must maintain smooth operation.
 
 ## Prioritized Techniques (Single Laptop)
 Test first:

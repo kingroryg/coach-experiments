@@ -3,7 +3,13 @@
 ## Goal Alignment Analysis
 
 **Use Case:** Single laptop, always-on background service for endpoint security analysis
-**Priorities:** Low resource impact when idle, predictable performance, adequate correctness
+**Priorities:**
+1. **No spikes** - CPU/memory/latency must stay within bounds (truly invisible)
+2. Low resource impact when idle
+3. Predictable performance
+4. Adequate correctness
+
+**Critical:** "Invisible" means no perceptible system slowdown. User shouldn't notice the service is running, even during inference.
 
 ---
 
@@ -45,11 +51,14 @@
 - Controls CPU usage during active inference
 - `nice` scheduling helps achieve "invisible" idle behavior
 - Thread count directly impacts CPU percentage
+- **CRITICAL for no-spike goal:** Hard thread limit prevents CPU burst
 
 **Current:** THREADS=2, NICE_LEVEL=10
 **Experiment needed:**
-- Test THREADS=1 vs 2 vs 4 on latency/CPU tradeoff
-- Validate that nice scheduling keeps idle CPU < 2%
+- Test THREADS=1 vs 2 vs 4 on **peak CPU** (not just mean)
+- Measure p99 CPU to ensure no spikes above threshold
+- Validate that nice scheduling prevents interference with foreground tasks
+- **Monitor:** p50/p95/p99 CPU during inference
 
 ---
 
@@ -68,16 +77,26 @@
 
 ---
 
-## MEDIUM PRIORITY (Consider Later)
+---
 
 ### 5. Chunked Prefill
-**Use case:** Only if analyzing very long logs (>4K tokens)
+**Status:** 🔥 HIGH PRIORITY for no-spike goal
 
-**Why consider:**
-- Prevents latency spikes on long prompts
-- Keeps response time predictable
+**Why it matters:**
+- **Prevents CPU spikes** on longer prompts (even 1K tokens can spike)
+- Spreads prefill work across multiple iterations
+- Keeps latency predictable (critical for "invisible" operation)
+- More important than initially thought due to no-spike requirement
 
-**When to test:** After baseline tuning, if log analysis is common
+**Experiment needed:**
+- Test with/without chunked prefill on 500-2000 token prompts
+- Measure **peak CPU** during prefill phase
+- Validate latency stays smooth (p99/p50 ratio)
+- llama.cpp may support this via `--n-batch` parameter
+
+---
+
+## MEDIUM PRIORITY (Consider Later)
 
 ---
 
@@ -154,14 +173,29 @@
 
 ## Recommended Experiment Order
 
-Based on the goal and current state:
+Based on the **no-spike "invisible" goal**:
 
 1. **Model selection** (7B+ for adequate correctness)
 2. **Quantization sweep** (Q8 → Q6 → Q4)
+   - **Monitor:** Not just mean latency, but p95/p99 latency and CPU
 3. **Thread tuning** (1, 2, 4 threads + nice levels)
-4. **Context sizing** (2048, 4096, 8192 for typical workload)
-5. **Prompt caching** (measure impact of cached system prompt)
-6. **Chunked prefill** (if log analysis is common)
+   - **Monitor:** Peak CPU, p99 CPU during inference
+   - Ensure no CPU burst above 50% even momentarily
+4. **Chunked prefill** (PROMOTED to high priority)
+   - Test on realistic prompt lengths (500-2000 tokens)
+   - **Monitor:** CPU stability during prefill phase
+5. **Context sizing** (2048, 4096, 8192 for typical workload)
+   - **Monitor:** Memory spikes during context window growth
+6. **Prompt caching** (measure impact of cached system prompt)
+   - Reduces processing = fewer opportunities for spikes
 7. **Continuous batching** (only if concurrency observed)
 
-**Conclusion:** The existing plan in docs/plan.md already captures the right techniques. No major changes needed.
+## Key Metrics to Track
+
+**For "no spikes" validation:**
+- CPU: mean, p95, **p99, peak**
+- Memory: mean, **peak, spikes**
+- Latency: p50, p95, **p99, p99/p50 ratio**
+- System responsiveness (subjective: can you tell it's running?)
+
+**Conclusion:** Updated priority to emphasize spike prevention. Chunked prefill promoted to high priority.
