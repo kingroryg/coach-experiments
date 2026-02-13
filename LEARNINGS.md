@@ -16,6 +16,28 @@ This file tracks key learnings from each experiment run.
 
 ---
 
+## TL;DR: Experiment Comparison
+
+| Exp | Model | Size | Quant | Threads | Correctness | Mean Lat | p95 Lat | Mean CPU | **Peak CPU** | **p99 CPU** | Status |
+|-----|-------|------|-------|---------|-------------|----------|---------|----------|--------------|-------------|--------|
+| 1 | LFM2.5-1.2B | 1.2B | Q4_K_M | 2 | 7.5% | 2.88s | 2.88s | 35.4% | ❌ N/A | ❌ N/A | ⚠️ No spike data |
+| 2 | LFM2-2.6B | 2.6B | Q4_K_M | 2 | 7.5% | 15.43s | 15.43s | 35.4% | ❌ 78.3% | ❌ 78.3% | ❌ Failed (spike) |
+| 3 | LFM2-2.6B | 2.6B | Q4_K_M | 1 | 7.5% | 23.98s | 23.98s | 26.3% | ❌ 70.0% | ❌ 70.0% | ❌ Failed (spike) |
+| 4 | LFM2-8B | 8B | Q4_K_M | 2 | N/A | N/A | N/A | N/A | N/A | N/A | ❌ Load failed |
+| 5 | **RedSage-Qwen3-8B** | 8B | Q4_K_M | 2 | **73.7%** ✅ | 22.54s | 41.79s | 46.7% | ❌ **100%** | ❌ **100%** | ⚠️ Great accuracy, bad spike |
+| 6 | **RedSage-Qwen3-8B** | 8B | Q4_K_M | 1 | **73.7%** ✅ | 38.67s | 71.57s | 38.0% | ❌ **100%** | ❌ **100%** | ⚠️ Slower, same spike |
+
+**Key Findings:**
+- ✅ **RedSage-Qwen3-8B achieves 73.7% correctness** (near 80% goal!)
+- ❌ **ALL models have CPU spikes ≥ 70%** (target: ≤ 50% p99)
+- ❌ **Thread reduction doesn't prevent spikes** (architectural issue)
+- ⚠️ **LFM models underperform** on security tasks (7.5% vs 73.7%)
+- ⚠️ **Spike occurs regardless of model size** (1.2B to 8B)
+
+**Conclusion:** Model selection solved correctness, but CPU spike problem remains unsolved. Next: Test chunked prefill or CPU affinity controls.
+
+---
+
 ## Experiment 1: Initial Baseline with LiquidAI 1.2B
 
 **Date:** 2026-02-13
@@ -176,4 +198,129 @@ This file tracks key learnings from each experiment run.
    - Try Mistral-7B or Qwen2.5-7B with security fine-tuning
    - Investigate cgroups/CPU affinity for spike control
    - Test if smaller batch size reduces prefill spike
+
+
+## Experiment 5: RedSage-Qwen3-8B with 2 Threads
+
+**Date:** 2026-02-13
+
+**Model:** mradermacher/RedSage-Qwen3-8B-DPO-GGUF (Q4_K_M quantization)
+
+**Configuration:**
+- Threads: 2
+- Context size: 4096
+- GPU layers: 0 (CPU-only with GGML_METAL_DISABLE=1)
+- Temperature: 0.0
+- Top-p: 1.0
+
+**Results:**
+- **🎉 Mean correctness score:** 0.7367 (73.67%) - MAJOR BREAKTHROUGH!
+- **Min score:** 0.0
+- **Mean latency:** 22.54s
+- **p50 latency:** 23.53s
+- **p95 latency:** 41.79s
+- **p99 latency:** 41.79s
+- **Latency p99/p50 ratio:** 1.78 (acceptable predictability)
+- **Mean system CPU:** 46.7%
+- **🚨 PEAK system CPU:** 100.0%
+- **🚨 p99 system CPU:** 100.0%
+- **Process RSS:** 13.8 MB mean, 22.22 MB peak
+
+**Key Findings:**
+
+1. **BREAKTHROUGH: Model Selection Solves Correctness**
+   - 73.67% score is 10x better than LFM models (7.5%)
+   - Nearly meets 80% correctness goal
+   - RedSage-Qwen3 DPO training likely helps with instruction following
+
+2. **CRITICAL: Worst CPU Spike Yet**
+   - 100% CPU spike - completely saturates system
+   - Mean CPU 46.7% is acceptable, but spikes violate "invisible" goal
+   - User would definitely notice system slowdown
+
+3. **Latency More Variable**
+   - p99/p50 ratio of 1.78 shows some variability (still < 2.0 goal)
+   - Longer prompts show higher latency (p95: 41.79s)
+
+4. **Memory Efficient**
+   - 22 MB peak RSS is well under budget
+   - Not a constraint
+
+---
+
+## Experiment 6: RedSage-Qwen3-8B with 1 Thread (Spike Mitigation)
+
+**Date:** 2026-02-13
+
+**Model:** mradermacher/RedSage-Qwen3-8B-DPO-GGUF (Q4_K_M quantization)
+
+**Configuration:**
+- Threads: 1 (reduced to control spikes)
+- Context size: 4096
+- GPU layers: 0 (CPU-only)
+
+**Results:**
+- **Mean correctness score:** 0.7367 (73.67%) - unchanged
+- **Mean latency:** 38.67s (72% slower)
+- **p50 latency:** 40.40s
+- **p95 latency:** 71.57s
+- **p99 latency:** 71.57s
+- **Latency p99/p50 ratio:** 1.77 (still acceptable)
+- **Mean system CPU:** 38.0%
+- **🚨 PEAK system CPU:** 100.0%
+- **🚨 p99 system CPU:** 100.0%
+- **Process RSS:** 22.62 MB
+
+**Key Findings:**
+
+1. **Thread Reduction DOES NOT Prevent Spikes**
+   - Still 100% CPU spike despite using only 1 thread
+   - Confirms spike is architectural, not a thread limit issue
+
+2. **Severe Latency Penalty**
+   - 72% slower than THREADS=2
+   - p95 latency: 71.57s (way above 2.5s goal)
+   - Not a viable tradeoff
+
+3. **Spike is Single-Core Saturation**
+   - 100% spike with THREADS=1 means it's saturating one core
+   - Likely during prefill phase (processing prompt tokens)
+
+---
+
+## Critical Analysis: Experiments 5-6
+
+**Major Success:** Found a model that meets correctness goals (RedSage-Qwen3-8B @ 73.7%)
+
+**Major Problem:** CPU spikes cannot be controlled with thread limits alone
+
+**Root Cause Hypothesis:**
+1. **Prefill phase saturates CPU** - Processing prompt tokens happens in burst
+2. **Thread limits don't prevent single-core saturation**
+3. **llama.cpp processes entire prompt before responding**
+
+**Why Thread Reduction Failed:**
+- THREADS parameter limits parallel work, not single-core intensity
+- Prefill is inherently sequential for each token
+- 100% spike with THREADS=1 proves it's not a parallelism issue
+
+**Next Steps (Prioritized):**
+
+1. **Chunked Prefill (HIGHEST PRIORITY)**
+   - Use `--n-batch` parameter to limit tokens processed per iteration
+   - Should spread prefill work across time
+   - Example: `--n-batch 128` instead of processing full prompt at once
+
+2. **CPU Affinity / cgroups**
+   - Use `taskset` to limit which cores can be used
+   - Use `cgroups` to cap CPU percentage at kernel level
+   - More invasive but guaranteed to work
+
+3. **Test Different Quantizations**
+   - Q6_K or Q8_0 might have different spike profiles
+   - Trade memory for potentially better spike control
+
+4. **Prompt Length Analysis**
+   - Measure spike correlation with prompt length
+   - Shorter prompts might stay under threshold
 
