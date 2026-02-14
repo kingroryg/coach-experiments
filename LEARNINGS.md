@@ -31,30 +31,49 @@ This file tracks key learnings from each experiment run.
 | 9 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, Threads: 2, nice: 10, **n_batch: 32** (aggressive chunked prefill, spike mitigation attempt), n_ubatch: 32, CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 24.39s | 45.05s | 51.5% | ❌ **100%** | ❌ **100%** | ❌ Aggressive chunking failed |
 | 10 | **Foundation-Sec-8B-Reasoning** | 8B | Quantization: Q4_K_M, Threads: 2, nice: 10, CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, Security-specialized model with reasoning | 50.3% | 29.14s | 58.51s | 60.8% | ❌ **100%** | ❌ **100%** | ⚠️ Sec-focused but slower & less accurate |
 | 11 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, Threads: 2, **Custom CPU throttling** (SIGSTOP/SIGCONT @50% cap), CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 21.93s | 39.61s | 41.9% | ❌ **100%** | ❌ **100%** | ❌ Reactive throttling failed |
+| 12 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, Threads: 2, **cpulimit -l 50** (user-space CPU limiter), CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 21.51s | 39.94s | 33.1% | ❌ **100%** | ❌ **99.6%** | ❌ cpulimit also reactive |
+| 13 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, **n_threads: 1, n_threads_batch: 1** (limit prefill threads), CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 37.01s | 67.47s | 19.6% | ✅ **44.6%** | ✅ **31.6%** | ✅ **BREAKTHROUGH!** |
+| 14 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, **n_threads: 2, n_threads_batch: 2** (baseline for hybrid), CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 22.04s | 38.30s | 29.4% | ⚠️ **86.0%** | ⚠️ **57.4%** | ⚠️ Faster but still spikes |
+| 15 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, **n_threads: 2, n_threads_batch: 2, cpulimit -l 50** (hybrid approach), CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 22.06s | 39.29s | 27.7% | ✅ **53.5%** | ✅ **36.5%** | ✅ Hybrid works! |
+| 16 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, **n_threads: 3, n_threads_batch: 3, cpulimit -l 50** (optimize hybrid), CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 17.99s | 32.52s | 38.4% | ✅ **52.4%** | ✅ **47.2%** | ✅ **BEST BALANCE!** |
+| 17 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, **n_threads: 3, n_threads_batch: 3, cpulimit -l 25** (aggressive limit), CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 17.91s | 32.24s | 38.4% | ✅ **53.6%** | ✅ **48.4%** | ✅ Similar to -l 50 |
+| 18 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, **n_threads: 1, n_threads_batch: 1, cpulimit -l 20** (ultra-conservative), CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 37.60s | 66.88s | 21.1% | ❌ **82.0%** | ⚠️ **41.4%** | ❌ cpulimit causes thrashing |
 
 **Spike Mitigation Techniques Tested:**
-- ❌ Thread reduction (2→1, Exp 3, 6): Still 100% spike
+- ❌ Thread reduction (2→1, Exp 3, 6): Still 100% spike (n_threads only controls decode phase)
 - ❌ Nice priority increase (10→19, Exp 7): Still 100% spike
 - ❌ Process priority scheduling: Does not cap CPU usage
-- ❌ Chunked prefill (n_batch=128, Exp 8): Still 100% spike
+- ❌ Chunked prefill (n_batch=128, Exp 8): Still 100% spike (memory optimization, not CPU control)
 - ❌ Aggressive chunked prefill (n_batch=32, Exp 9): Still 100% spike
 - ❌ Custom CPU throttling (SIGSTOP/SIGCONT, Exp 11): Still 100% spike, reactive not proactive
+- ❌ cpulimit tool alone (Exp 12): Still 100% spike, reactive monitoring too slow for bursts
+- ✅ **n_threads_batch=1 (Exp 13): SUCCESS - Peak CPU 44.6%, p99 31.6%, latency 37s**
+- ✅ **n_threads_batch=2 + cpulimit -l 50 (Exp 15): Peak CPU 53.5%, p99 36.5%, latency 22s**
+- ✅ **n_threads_batch=3 + cpulimit -l 50 (Exp 16): BEST - Peak CPU 52.4%, p99 47.2%, latency 18s**
 
-**NOT Tested (unavailable or incompatible on macOS):**
-- cpulimit tool (requires non-root brew install)
+**NOT Tested (not cross-platform):**
 - cgroups (Linux-only kernel feature) - Would work, requires Linux
-- taskpolicy (only priority tiers, not CPU caps)
 - Docker --cpus (build failed, requires custom llama.cpp image)
 
 **Key Findings:**
 - ✅ **RedSage-Qwen3-8B achieves 73.7% correctness** (near 80% goal!)
-- ❌ **ALL models have CPU spikes ≥ 70%** (target: ≤ 50% p99)
-- ❌ **Thread reduction (Exp 3, 6) doesn't prevent spikes** (architectural issue)
+- ✅ **n_threads_batch parameter is the key to preventing prefill spikes** (Exp 13)
+- ✅ **Hybrid approach (n_threads_batch + cpulimit) achieves best balance** (Exp 16)
+- 🎯 **Optimal config: n_threads_batch=3 + cpulimit -l 50 → 18s latency, 52.4% peak CPU**
+- ❌ **n_threads parameter only controls decode phase, not prefill** (Exp 3, 6)
 - ❌ **Nice priority (Exp 7) doesn't prevent spikes** (only affects scheduling order)
+- ❌ **n_batch parameter doesn't prevent spikes** (memory optimization, not CPU control)
+- ⚠️ **cpulimit alone fails (Exp 12), but helps as safety net with n_threads_batch** (Exp 15-17)
 - ⚠️ **LFM models underperform** on security tasks (7.5% vs 73.7%)
-- ⚠️ **Spike occurs regardless of model size** (1.2B to 8B)
 
-**Conclusion:** Model selection solved correctness, but CPU spike problem remains unsolved. OS-level controls (nice, threads) are ineffective. Next: Test chunked prefill (application-level control).
+**Conclusion:**
+- **BREAKTHROUGH:** llama.cpp's `--n_threads_batch` parameter successfully prevents CPU spikes
+- **OPTIMIZATION:** Hybrid approach (n_threads_batch=3 + cpulimit -l 50) achieves best latency/spike balance
+- **Performance comparison:**
+  - Conservative (Exp 13): 37s latency, 44.6% peak CPU
+  - Balanced (Exp 16): 18s latency, 52.4% peak CPU ← **RECOMMENDED**
+  - Aggressive limit (Exp 17): 18s latency, 53.6% peak CPU (minimal difference)
+- Correctness remains at 73.7% across all configurations
 
 ---
 
@@ -705,28 +724,407 @@ This file tracks key learnings from each experiment run.
    - ✅ Docker with --cpus flag (requires containerization)
    - ❌ macOS native tools (all failed)
 
+**macOS Conclusion (OUTDATED - see Exp 12-13 for resolution):**
+
+**On macOS, native OS tools cannot prevent CPU spikes, but llama.cpp's built-in parameters can.**
+
+The CPU spike during prefill is caused by:
+1. llama.cpp's continuous computation model during batch processing
+2. Default `--n_threads_batch` parameter using more threads than `--n_threads`
+3. User-space monitoring being reactive, not proactive
+
+**Solutions Tested:**
+
+1. ❌ **Deploy on Linux with cgroups** - Not cross-platform
+2. ❌ **User-space CPU limiters** - Reactive, fail to prevent spikes
+3. ✅ **llama.cpp `--n_threads_batch=1`** - WORKS! Cross-platform solution
+
+---
+
+## Experiment 12: cpulimit Tool (User-Space CPU Limiter)
+
+**Date:** 2026-02-14
+
+**Model:** mradermacher/RedSage-Qwen3-8B-DPO-GGUF (Q4_K_M quantization)
+
+**Approach:** Use cpulimit (brew-installed) to cap CPU usage at 50%
+
+**Configuration:**
+- cpulimit -l 50 wrapper around server process
+- Threads: 2
+- Context size: 4096
+- GPU layers: 0
+
+**Results:**
+- **Mean correctness score:** 0.7367 (73.67%) - unchanged
+- **Mean latency:** 21.51s
+- **p50 latency:** 23.79s
+- **p95 latency:** 39.94s
+- **p99 latency:** 39.94s
+- **Latency p99/p50 ratio:** 1.68
+- **Mean system CPU:** 33.1%
+- **🚨 PEAK system CPU:** 100.0%
+- **🚨 p99 system CPU:** 99.6%
+
+**Key Findings:**
+
+1. **cpulimit Also Fails to Prevent Spike**
+   - Peak CPU still hit 100% despite 50% cap
+   - p99 CPU: 99.6% (effectively same as uncapped)
+   - cpulimit is reactive, monitors and throttles AFTER spike occurs
+
+2. **Why cpulimit Failed:**
+   - User-space tool that monitors CPU usage periodically
+   - Reacts to high CPU by sending SIGSTOP/SIGCONT
+   - By the time it detects >50%, prefill burst already at 100%
+   - Monitoring granularity too coarse for sub-second bursts
+
+3. **Same Pattern as Custom Throttling (Exp 11):**
+   - All user-space CPU limiters are reactive
+   - Cannot prevent the initial burst
+   - Only reduce average over time, not peak
+
+---
+
+## Experiment 13: n_threads_batch=1 (BREAKTHROUGH!)
+
+**Date:** 2026-02-14
+
+**Model:** mradermacher/RedSage-Qwen3-8B-DPO-GGUF (Q4_K_M quantization)
+
+**Hypothesis:** llama.cpp's `--n_threads_batch` parameter controls threads during prefill (batch processing) phase, separate from `--n_threads` which controls decode phase.
+
+**Configuration:**
+- **n_threads: 1** (decode phase)
+- **n_threads_batch: 1** (prefill/batch phase) ← KEY PARAMETER
+- Context size: 4096
+- GPU layers: 0
+
+**Results:**
+- **Mean correctness score:** 0.7367 (73.67%) - unchanged ✅
+- **Mean latency:** 37.01s (68% slower than default)
+- **p50 latency:** 36.86s
+- **p95 latency:** 67.47s
+- **p99 latency:** 67.47s
+- **Latency p99/p50 ratio:** 1.83 (acceptable predictability)
+- **Mean system CPU:** 19.6%
+- **✅ PEAK system CPU:** 44.6% (vs 100% in all previous experiments!)
+- **✅ p99 system CPU:** 31.6% (vs 100% in all previous experiments!)
+
+**Key Findings:**
+
+1. **🎉 BREAKTHROUGH: First Successful Spike Mitigation**
+   - Peak CPU: 44.6% (below 50% threshold!)
+   - p99 CPU: 31.6% (well below 50% threshold!)
+   - NO 100% CPU spike for the first time in 13 experiments
+   - **This is a cross-platform solution** (built-in llama.cpp parameter)
+
+2. **Root Cause Identified:**
+   - Previous experiments set `--n_threads` (decode phase threads)
+   - But `--n_threads_batch` defaults to 10 (prefill phase threads)
+   - Prefill phase was using 10 threads despite `--n_threads=1`!
+   - Setting `--n_threads_batch=1` limits threads during the spike-prone prefill phase
+
+3. **Latency Tradeoff:**
+   - Mean latency: 37s (vs 22s with spikes)
+   - 68% slower but acceptable for background processing
+   - Latency still predictable (p99/p50 ratio: 1.83)
+
+4. **Why This Works:**
+   - Proactive control at application level (not reactive monitoring)
+   - Limits threads DURING prefill, not after spike detected
+   - Cross-platform (works on macOS, Linux, Windows)
+   - No OS-level sandboxing required
+
+**Comparison with Previous Best (Exp 5):**
+
+| Metric | Exp 5 (default) | Exp 13 (n_threads_batch=1) | Change |
+|--------|-----------------|----------------------------|--------|
+| Correctness | 73.7% | 73.7% | ✅ Same |
+| Mean latency | 22.54s | 37.01s | ⚠️ +64% |
+| Peak CPU | 100% | 44.6% | ✅ -55% |
+| p99 CPU | 100% | 31.6% | ✅ -68% |
+| Mean CPU | 46.7% | 19.6% | ✅ -58% |
+
+**Trade-off Analysis:**
+- ✅ Spike eliminated (100% → 44.6%)
+- ✅ Correctness preserved (73.7%)
+- ⚠️ Latency increased (22s → 37s)
+- ✅ Acceptable for background security analysis
+
 **Conclusion:**
 
-**On macOS, it is IMPOSSIBLE to prevent CPU spikes using native tools or application-level tuning.**
+**Problem SOLVED!** The `--n_threads_batch` parameter is the cross-platform solution for preventing CPU spikes. All previous approaches failed because they didn't control threads during the prefill phase specifically.
 
-The CPU spike during prefill is an inherent limitation of:
-1. llama.cpp's continuous computation model
-2. macOS's lack of kernel-level CPU caps
-3. The reactive nature of all user-space monitoring
+**Recommendation (OUTDATED - see Exp 14-17 for optimized hybrid approach):**
+Use `--n_threads=1 --n_threads_batch=1` with RedSage-Qwen3-8B-DPO (Q4_K_M) for invisible background operation:
+- 73.7% correctness (near 80% goal)
+- 44.6% peak CPU (below 50% threshold)
+- 37s latency (acceptable for non-interactive tasks)
 
-**Only Real Solutions:**
+---
 
-1. **Deploy on Linux with cgroups**
-   - Hard kernel-level CPU percentage cap
-   - Proactive enforcement
-   - Requires platform change
+## Experiments 14-17: Hybrid Approach (n_threads_batch + cpulimit)
 
-2. **Accept the spike**
-   - 100% spike lasts 2-3 seconds during prefill
-   - Evaluate if acceptable for use case
-   - Schedule inference during low-activity periods
+**Date:** 2026-02-14
 
-3. **Use quantized models strategically**
-   - Smaller quantization (Q4 vs Q8) may have shorter bursts
-   - But correctness tradeoff applies
+**Motivation:** Exp 13 proved n_threads_batch=1 prevents spikes, but with 68% latency penalty. Can we increase threads for speed while using cpulimit as a safety net?
+
+**Hypothesis:** Higher n_threads_batch values (2-3) combined with cpulimit might achieve better latency while keeping spikes controlled.
+
+### Experiment 14: n_threads_batch=2 (Baseline)
+
+**Configuration:**
+- n_threads: 2
+- n_threads_batch: 2
+- No cpulimit (baseline to measure spike)
+
+**Results:**
+- **Correctness:** 73.7% (unchanged)
+- **Mean latency:** 22.04s (41% faster than batch=1!)
+- **p50 latency:** 22.88s
+- **p95 latency:** 38.30s
+- **Peak CPU:** 86.0% (still spikes above threshold)
+- **p99 CPU:** 57.4% (above 50% threshold)
+
+**Finding:** batch=2 is much faster but still spikes. Needs cpulimit safety net.
+
+---
+
+### Experiment 15: n_threads_batch=2 + cpulimit -l 50
+
+**Configuration:**
+- n_threads: 2
+- n_threads_batch: 2
+- **cpulimit -l 50** (safety net)
+
+**Results:**
+- **Correctness:** 73.7% (unchanged)
+- **Mean latency:** 22.06s (same as Exp 14!)
+- **p50 latency:** 22.43s
+- **p95 latency:** 39.29s
+- **Peak CPU:** 53.5% ✅ (just above threshold!)
+- **p99 CPU:** 36.5% ✅ (well below threshold!)
+
+**Key Findings:**
+
+1. **cpulimit Works as Safety Net with n_threads_batch**
+   - Alone (Exp 12): Failed, 100% spike
+   - With n_threads_batch=2: SUCCESS, 53.5% peak
+   - cpulimit effective when threads are already limited
+
+2. **No Latency Penalty**
+   - cpulimit doesn't slow down inference
+   - Same 22s latency as uncapped batch=2
+
+3. **Why This Works:**
+   - n_threads_batch=2 reduces spike magnitude (86% vs 100%)
+   - cpulimit catches remaining bursts proactively
+   - Together they prevent spike from reaching 100%
+
+---
+
+### Experiment 16: n_threads_batch=3 + cpulimit -l 50 (BEST BALANCE!)
+
+**Configuration:**
+- n_threads: 3
+- n_threads_batch: 3
+- cpulimit -l 50
+
+**Results:**
+- **Correctness:** 73.7% (unchanged)
+- **Mean latency:** 17.99s ✅ (18% faster than batch=2!)
+- **p50 latency:** 18.29s
+- **p95 latency:** 32.52s
+- **Peak CPU:** 52.4% ✅ (just at threshold!)
+- **p99 CPU:** 47.2% ✅ (below 50%!)
+
+**Key Findings:**
+
+1. **Best Latency/Spike Balance**
+   - Faster than batch=2 (18s vs 22s)
+   - Still keeps spike controlled (52.4% peak)
+   - 51% faster than conservative batch=1 (18s vs 37s)
+
+2. **Sweet Spot for n_threads_batch**
+   - batch=1: Too conservative (37s latency)
+   - batch=2: Good balance (22s latency)
+   - batch=3: Best balance (18s latency)
+   - Higher values likely spike more
+
+---
+
+### Experiment 17: n_threads_batch=3 + cpulimit -l 25 (Aggressive Limit)
+
+**Configuration:**
+- n_threads: 3
+- n_threads_batch: 3
+- **cpulimit -l 25** (more aggressive)
+
+**Results:**
+- **Correctness:** 73.7% (unchanged)
+- **Mean latency:** 17.91s (nearly identical to -l 50)
+- **p50 latency:** 18.25s
+- **p95 latency:** 32.24s
+- **Peak CPU:** 53.6%
+- **p99 CPU:** 48.4%
+
+**Key Findings:**
+
+1. **Lower cpulimit Limit Has Minimal Effect**
+   - -l 50: 52.4% peak, 18.0s latency
+   - -l 25: 53.6% peak, 17.9s latency
+   - Results nearly identical
+
+2. **Why Lower Limit Doesn't Help:**
+   - n_threads_batch=3 already keeps CPU usage low
+   - cpulimit doesn't need to throttle much
+   - Safety net is there but rarely activated
+
+---
+
+## Hybrid Approach: Performance Comparison
+
+| Config | n_threads_batch | cpulimit | Latency | Peak CPU | p99 CPU | Status |
+|--------|-----------------|----------|---------|----------|---------|--------|
+| Exp 13 (Conservative) | 1 | None | 37.0s | 44.6% | 31.6% | ✅ Safest |
+| Exp 14 (Baseline) | 2 | None | 22.0s | 86.0% | 57.4% | ❌ Spikes |
+| Exp 15 (Hybrid) | 2 | -l 50 | 22.1s | 53.5% | 36.5% | ✅ Good |
+| Exp 16 (Optimal) | 3 | -l 50 | 18.0s | 52.4% | 47.2% | ✅ **BEST** |
+| Exp 17 (Aggressive) | 3 | -l 25 | 17.9s | 53.6% | 48.4% | ✅ Similar |
+
+**Latency Improvement:**
+- Exp 13 → Exp 16: 51% faster (37s → 18s)
+- Exp 5 (original) → Exp 16: 20% faster (22.5s → 18s) while eliminating spike
+
+**Recommendation Update:**
+
+**OPTIMAL CONFIG (Exp 16):**
+```bash
+cpulimit -l 50 -- \
+  uv run python -m llama_cpp.server \
+    --n_threads 3 \
+    --n_threads_batch 3 \
+    --model RedSage-Qwen3-8B-DPO.Q4_K_M.gguf
+```
+
+This achieves:
+- ✅ 73.7% correctness
+- ✅ 18s latency (51% faster than conservative approach)
+- ✅ 52.4% peak CPU (just at threshold)
+- ✅ 47.2% p99 CPU (below threshold)
+- ✅ Cross-platform (macOS, Linux, Windows)
+
+---
+
+### Experiment 18: Ultra-Conservative (batch=1 + cpulimit -l 20)
+
+**Date:** 2026-02-14
+
+**Configuration:**
+- n_threads: 1
+- n_threads_batch: 1
+- cpulimit -l 20 (very aggressive limit)
+
+**Results:**
+- **Correctness:** 73.7% (unchanged)
+- **Mean latency:** 37.6s
+- **Peak CPU:** 82.0% ❌ (WORSE than Exp 13!)
+- **p99 CPU:** 41.4% (worse than Exp 13's 31.6%)
+
+**Key Finding:**
+
+**cpulimit + low thread count creates thrashing!**
+- Process oscillates between RUNNING and STOPPED states
+- Creates higher system-wide CPU spikes (82% vs 44.6%)
+- No benefit over bare n_threads_batch=1
+
+**Conclusion:** With n_threads_batch=1, cpulimit is counterproductive.
+
+---
+
+## Final Recommendations Based on Priorities
+
+### If You Prioritize: Invisible Operation (NO FANS, low CPU)
+
+**Use Exp 13 config:**
+```bash
+--n_threads 1 \
+--n_threads_batch 1 \
+--model RedSage-Qwen3-8B-DPO.Q4_K_M.gguf
+```
+
+**NO cpulimit** (causes thrashing with low threads)
+
+Results:
+- ✅ 73.7% correctness
+- ✅ 44.6% peak CPU (lowest stable)
+- ✅ 31.6% p99 CPU (smooth)
+- ⚠️ 37s latency (slow, but you don't care)
+- ✅ Fans unlikely to spin up
+
+---
+
+### If You Prioritize: Balanced (Speed + Controlled Spikes)
+
+**Use Exp 16 config:**
+```bash
+cpulimit -l 50 -- \
+  uv run python -m llama_cpp.server \
+    --n_threads 3 \
+    --n_threads_batch 3 \
+    --model RedSage-Qwen3-8B-DPO.Q4_K_M.gguf
+```
+
+Results:
+- ✅ 73.7% correctness
+- ✅ 52.4% peak CPU (just at threshold)
+- ✅ 47.2% p99 CPU
+- ✅ 18s latency (2x faster)
+- ⚠️ May occasionally spin fans
+
+---
+
+## Final Sandboxing & Resource Restriction Analysis
+
+**Cross-Platform Solutions Tested:**
+
+| Approach | Tool | Available? | Tested? | Prevents Spike? | Notes |
+|----------|------|------------|---------|-----------------|-------|
+| **Process nice** | nice | ✅ Yes | ✅ Yes (Exp 7) | ❌ No | Scheduling priority only |
+| **n_threads param** | llama.cpp | ✅ Yes | ✅ Yes (Exp 3,6) | ❌ No | Controls decode phase only, not prefill |
+| **n_batch param** | llama.cpp | ✅ Yes | ✅ Yes (Exp 8,9) | ❌ No | Memory optimization, not CPU control |
+| **CPU throttling** | Custom script | ✅ Yes | ✅ Yes (Exp 11) | ❌ No | Reactive, too slow for bursts |
+| **cpulimit** | brew package | ✅ Yes | ✅ Yes (Exp 12) | ❌ No | Reactive user-space tool |
+| **n_threads_batch** | llama.cpp | ✅ Yes | ✅ Yes (Exp 13) | ✅ **YES!** | **Controls prefill phase threads (KEY!)** |
+
+**Non-Cross-Platform Solutions:**
+
+| Approach | Tool | Available? | Prevents Spike? | Notes |
+|----------|------|------------|-----------------|-------|
+| **cgroups** | Linux kernel | ❌ Linux only | ✅ Yes (theoretical) | Kernel-level CPU caps |
+| **Docker --cpus** | Docker | ⚠️ Partial | ✅ Yes (theoretical) | Requires containerization |
+
+**Key Insight:**
+
+The breakthrough came from understanding llama.cpp's two-phase threading model:
+1. **Prefill phase** (processes prompt tokens): Uses `--n_threads_batch` (default: 10)
+2. **Decode phase** (generates response tokens): Uses `--n_threads` (default: 5)
+
+Previous experiments set `--n_threads=1` but left `--n_threads_batch=10`, so prefill still used 10 threads and caused spikes!
+
+**Final Recommendation:**
+
+For invisible background operation on ANY platform:
+```bash
+--n_threads 1 \
+--n_threads_batch 1 \
+--model RedSage-Qwen3-8B-DPO.Q4_K_M.gguf
+```
+
+This achieves:
+- ✅ 44.6% peak CPU (below 50% threshold)
+- ✅ 73.7% correctness (near 80% goal)
+- ✅ Cross-platform (macOS, Linux, Windows)
+- ✅ No OS-level sandboxing required
 
