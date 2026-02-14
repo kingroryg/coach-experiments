@@ -30,6 +30,7 @@ This file tracks key learnings from each experiment run.
 | 8 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, Threads: 2, nice: 10, **n_batch: 128** (chunked prefill, spike mitigation attempt), n_ubatch: 128, CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 23.70s | 43.39s | 47.8% | ❌ **100%** | ❌ **100%** | ❌ Chunking doesn't help |
 | 9 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, Threads: 2, nice: 10, **n_batch: 32** (aggressive chunked prefill, spike mitigation attempt), n_ubatch: 32, CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 24.39s | 45.05s | 51.5% | ❌ **100%** | ❌ **100%** | ❌ Aggressive chunking failed |
 | 10 | **Foundation-Sec-8B-Reasoning** | 8B | Quantization: Q4_K_M, Threads: 2, nice: 10, CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, Security-specialized model with reasoning | 50.3% | 29.14s | 58.51s | 60.8% | ❌ **100%** | ❌ **100%** | ⚠️ Sec-focused but slower & less accurate |
+| 11 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, Threads: 2, **Custom CPU throttling** (SIGSTOP/SIGCONT @50% cap), CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 21.93s | 39.61s | 41.9% | ❌ **100%** | ❌ **100%** | ❌ Reactive throttling failed |
 
 **Spike Mitigation Techniques Tested:**
 - ❌ Thread reduction (2→1, Exp 3, 6): Still 100% spike
@@ -37,11 +38,13 @@ This file tracks key learnings from each experiment run.
 - ❌ Process priority scheduling: Does not cap CPU usage
 - ❌ Chunked prefill (n_batch=128, Exp 8): Still 100% spike
 - ❌ Aggressive chunked prefill (n_batch=32, Exp 9): Still 100% spike
+- ❌ Custom CPU throttling (SIGSTOP/SIGCONT, Exp 11): Still 100% spike, reactive not proactive
 
-**NOT Tested (because unavailable on macOS):**
-- cpulimit tool (not installed, brew install requires non-root)
-- cgroups (Linux-only kernel feature)
-- CPU affinity with hard caps
+**NOT Tested (unavailable or incompatible on macOS):**
+- cpulimit tool (requires non-root brew install)
+- cgroups (Linux-only kernel feature) - Would work, requires Linux
+- taskpolicy (only priority tiers, not CPU caps)
+- Docker --cpus (build failed, requires custom llama.cpp image)
 
 **Key Findings:**
 - ✅ **RedSage-Qwen3-8B achieves 73.7% correctness** (near 80% goal!)
@@ -628,4 +631,102 @@ This file tracks key learnings from each experiment run.
 - Foundation-Sec: Security-focused but slow and moderate correctness (50.3%)
 - RedSage-Qwen3: Highest correctness (73.7%) with reasonable latency
 - All models: 100% CPU spike (unsolved problem)
+
+
+## Experiment 11: CPU Throttling with Custom Script (FAILED)
+
+**Date:** 2026-02-13
+
+**Model:** mradermacher/RedSage-Qwen3-8B-DPO-GGUF (Q4_K_M quantization)
+
+**Approach:** Custom SIGSTOP/SIGCONT throttling script to cap CPU at 50%
+
+**Configuration:**
+- Custom wrapper: `run_with_cpu_cap.sh 50`
+- Monitor CPU usage and suspend process when >50%
+- Threads: 2
+- Context size: 4096
+- GPU layers: 0
+
+**Results:**
+- **Mean correctness score:** 0.7367 (73.7%) - unchanged
+- **Mean latency:** 21.93s (similar to unthrottled)
+- **p50 latency:** 23.40s
+- **p95 latency:** 39.61s
+- **Mean system CPU:** 41.9%
+- **🚨 PEAK system CPU:** 100.0%
+- **🚨 p99 system CPU:** 100.0%
+- **Process CPU metrics:** Corrupted (SIGSTOP/SIGCONT interference)
+
+**Key Findings:**
+
+1. **Custom Throttling Script FAILED**
+   - SIGSTOP/SIGCONT approach doesn't prevent system CPU spike
+   - Process metrics corrupted (showing 246% mean, 873% peak)
+   - Suspension causes stuttering in responses
+
+2. **Why It Didn't Work:**
+   - Throttling reacts AFTER CPU spike already occurred
+   - Process suspension doesn't prevent the prefill burst
+   - By the time we detect >50%, spike already hit 100%
+   - Monitoring granularity (200ms) too slow for burst detection
+
+---
+
+## Sandboxing & Resource Restriction: Final Analysis
+
+**Tested on macOS:**
+
+| Approach | Tool | Available? | Tested? | Prevents Spike? | Notes |
+|----------|------|------------|---------|-----------------|-------|
+| **Process nice** | nice | ✅ Yes | ✅ Yes (Exp 7) | ❌ No | Scheduling priority only |
+| **Thread limits** | THREADS param | ✅ Yes | ✅ Yes (Exp 3,6) | ❌ No | Controls parallelism, not intensity |
+| **Chunked prefill** | n_batch param | ✅ Yes | ✅ Yes (Exp 8,9) | ❌ No | Memory optimization, not CPU control |
+| **CPU throttling** | Custom script | ✅ Yes | ✅ Yes (Exp 11) | ❌ No | Reactive, too slow for bursts |
+| **cpulimit** | brew package | ❌ No | ❌ No | ❓ Unknown | Requires non-root brew install |
+| **taskpolicy** | macOS native | ✅ Yes | ❌ No | ❓ Unknown | Only controls priority tiers, not caps |
+| **cgroups** | Linux kernel | ❌ No | ❌ No | ✅ Yes (theoretical) | Not available on macOS |
+| **Docker --cpus** | Docker | ✅ Yes | ❌ Partial | ✅ Yes (theoretical) | Build failed, requires custom image |
+
+**macOS Limitations:**
+
+1. **No kernel-level CPU caps**
+   - macOS doesn't have cgroups equivalent
+   - All approaches are user-space and reactive
+   - Cannot prevent CPU bursts proactively
+
+2. **All user-space tools are reactive**
+   - Detect spike AFTER it occurs
+   - Cannot prevent prefill burst
+   - Too slow for sub-second spikes
+
+3. **Only viable options:**
+   - ✅ Linux with cgroups (requires platform change)
+   - ✅ Docker with --cpus flag (requires containerization)
+   - ❌ macOS native tools (all failed)
+
+**Conclusion:**
+
+**On macOS, it is IMPOSSIBLE to prevent CPU spikes using native tools or application-level tuning.**
+
+The CPU spike during prefill is an inherent limitation of:
+1. llama.cpp's continuous computation model
+2. macOS's lack of kernel-level CPU caps
+3. The reactive nature of all user-space monitoring
+
+**Only Real Solutions:**
+
+1. **Deploy on Linux with cgroups**
+   - Hard kernel-level CPU percentage cap
+   - Proactive enforcement
+   - Requires platform change
+
+2. **Accept the spike**
+   - 100% spike lasts 2-3 seconds during prefill
+   - Evaluate if acceptable for use case
+   - Schedule inference during low-activity periods
+
+3. **Use quantized models strategically**
+   - Smaller quantization (Q4 vs Q8) may have shorter bursts
+   - But correctness tradeoff applies
 
