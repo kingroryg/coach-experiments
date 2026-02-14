@@ -29,6 +29,7 @@ This file tracks key learnings from each experiment run.
 | 7 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, Threads: 2, **nice: 19** (max nice, spike mitigation attempt), CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 22.05s | 40.24s | 40.2% | ❌ **100%** | ❌ **100%** | ❌ Nice doesn't cap CPU |
 | 8 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, Threads: 2, nice: 10, **n_batch: 128** (chunked prefill, spike mitigation attempt), n_ubatch: 128, CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 23.70s | 43.39s | 47.8% | ❌ **100%** | ❌ **100%** | ❌ Chunking doesn't help |
 | 9 | **RedSage-Qwen3-8B** | 8B | Quantization: Q4_K_M, Threads: 2, nice: 10, **n_batch: 32** (aggressive chunked prefill, spike mitigation attempt), n_ubatch: 32, CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, DPO-trained | **73.7%** ✅ | 24.39s | 45.05s | 51.5% | ❌ **100%** | ❌ **100%** | ❌ Aggressive chunking failed |
+| 10 | **Foundation-Sec-8B-Reasoning** | 8B | Quantization: Q4_K_M, Threads: 2, nice: 10, CTX: 4096, GGML_METAL_DISABLE: 1, N_GPU_LAYERS: 0, LLAMA_SERVER_MODE: python, temp: 0.0, Security-specialized model with reasoning | 50.3% | 29.14s | 58.51s | 60.8% | ❌ **100%** | ❌ **100%** | ⚠️ Sec-focused but slower & less accurate |
 
 **Spike Mitigation Techniques Tested:**
 - ❌ Thread reduction (2→1, Exp 3, 6): Still 100% spike
@@ -551,4 +552,80 @@ This file tracks key learnings from each experiment run.
    - Re-evaluate "invisible" requirement
    - 100% spike for ~2-3 seconds might be acceptable
    - Depends on user workload
+
+
+## Experiment 10: Foundation-Sec-8B-Reasoning (Security-Focused Model)
+
+**Date:** 2026-02-13
+
+**Model:** mradermacher/Foundation-Sec-8B-Reasoning-GGUF (Q4_K_M quantization)
+
+**Hypothesis:** A security-focused model with reasoning capabilities might improve correctness beyond RedSage's 73.7%
+
+**Configuration:**
+- Threads: 2
+- Context size: 4096
+- GPU layers: 0 (CPU-only)
+- Nice: 10
+- Model: Security-specialized with reasoning
+
+**Results:**
+- **Mean correctness score:** 0.5033 (50.33%) - WORSE than RedSage!
+- **Min score:** 0.0
+- **Mean latency:** 29.14s (26% slower than RedSage)
+- **p50 latency:** 58.51s (2.5x slower!)
+- **p95 latency:** 58.51s
+- **p99 latency:** 58.51s
+- **Latency p99/p50 ratio:** 1.0 (very predictable)
+- **Mean system CPU:** 60.8% (higher than RedSage)
+- **🚨 PEAK system CPU:** 100.0%
+- **🚨 p99 system CPU:** 100.0%
+- **Process RSS:** 13.92 MB
+
+**Key Findings:**
+
+1. **Security Specialization Doesn't Guarantee Better Performance**
+   - Foundation-Sec scored 50.3% vs RedSage's 73.7%
+   - Despite being security-focused, performed 32% worse
+   - Model architecture and training matter more than domain label
+
+2. **Much Slower Inference**
+   - p50 latency: 58.5s (2.5x slower than RedSage's 23.5s)
+   - May be due to "Reasoning" mode generating more tokens
+   - Not acceptable for real-time security analysis
+
+3. **Higher CPU Usage**
+   - Mean CPU: 60.8% (vs RedSage's 46.7%)
+   - Still hits 100% spike
+   - Worse on both average and peak metrics
+
+4. **Very Predictable Latency**
+   - p99/p50 ratio = 1.0 (perfectly consistent)
+   - All prompts took similar time
+   - But that time is too long (58s)
+
+**Comparison with RedSage-Qwen3-8B:**
+- Correctness: 50.3% vs 73.7% (32% lower)
+- Speed: 58.5s vs 23.5s (2.5x slower)
+- CPU: 60.8% vs 46.7% (30% higher)
+
+---
+
+## Model Selection Summary
+
+**Tested Models for Endpoint Security:**
+
+| Model | Size | Correctness | Speed (p50) | Mean CPU | Peak CPU |
+|-------|------|-------------|-------------|----------|----------|
+| LFM2.5-1.2B | 1.2B | 7.5% | 2.88s | 35.4% | N/A |
+| LFM2-2.6B | 2.6B | 7.5% | 15.43s | 35.4% | 78.3% |
+| LFM2-8B (MoE) | 8B | N/A | N/A | N/A | N/A (load failed) |
+| Foundation-Sec-8B-Reasoning | 8B | 50.3% | 58.51s | 60.8% | 100% |
+| RedSage-Qwen3-8B-DPO | 8B | 73.7% | 23.53s | 46.7% | 100% |
+
+**Key Observations:**
+- LFM models: Fast but very low correctness (7.5%)
+- Foundation-Sec: Security-focused but slow and moderate correctness (50.3%)
+- RedSage-Qwen3: Highest correctness (73.7%) with reasonable latency
+- All models: 100% CPU spike (unsolved problem)
 
