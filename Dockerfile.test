@@ -1,0 +1,28 @@
+FROM ubuntu:22.04
+
+WORKDIR /app
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    python3-pip \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+
+ENV PATH="/root/.local/bin:/root/.cargo/bin:$PATH"
+
+# Copy project files
+COPY . /app/
+
+# Install Python dependencies
+RUN uv sync
+
+# Expose server port
+EXPOSE 8080
+
+# Default command
+CMD ["/bin/bash"]

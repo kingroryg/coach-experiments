@@ -1,0 +1,11 @@
+models/
+results/
+.venv/
+*.pyc
+__pycache__/
+.git/
+.gitignore
+.DS_Store
+*.log
+Vagrantfile
+.vagrant/
